@@ -90,9 +90,11 @@ module Typelib
             id_to_node[child_node['id']] = child_node
             @current_node = child_node
             if (child_node_name = child_node['name'])
+                STDOUT.puts "name #{child_node_name}"
                 name_to_nodes[GCCXMLLoader.cxx_to_typelib(child_node_name)] << child_node
             end
             if (child_node_name = child_node['demangled'])
+                STDOUT.puts "Got demangeled #{child_node_name}"
                 demangled_to_node[GCCXMLLoader.cxx_to_typelib(child_node_name)] = child_node
             end
 
@@ -813,12 +815,15 @@ module Typelib
                 STDOUT.puts "with call #{cmdline.join(' ')} "
                 STDOUT.puts "2 -----  "
 
-                FileUtils.copy_file(file, "/tmp/out-castxml")
 
                 #if !system(cmdline.join(" "))
                 if !system(cmdline.join(" "))
                     raise ArgumentError, "gccxml returned an error while parsing #{file} with call #{cmdline.join(' ')} "
                 end
+                
+                FileUtils.copy_file(io.path, "/tmp/debug2.castxml")
+                return ""
+                
                 io.open
                 return io.read
             end
@@ -852,6 +857,8 @@ module Typelib
                 if !system(*cmdline)
                     raise ArgumentError, "gccxml returned an error while parsing #{file}"
                 end
+                 
+                FileUtils.copy_file(io.path, "/tmp/debug2.gccxml")
 
                 return io.read
             end
@@ -871,7 +878,7 @@ module Typelib
             # Add the standard C++ types (such as /std/string)
             Registry.add_standard_cxx_types(registry)
 
-            xml = castxml(file, options)
+            castxml(file, options)
             xml = gccxml(file, options)
             converter = GCCXMLLoader.new
             converter.opaques = opaques
@@ -892,17 +899,25 @@ module Typelib
                 end
                 io.flush
                 call = [gcc_binary_name, "--preprocess", *includes, *defines, *gccxml_default_options, io.path]
-                if use_castxml
-                    call = [use_castxml, "--castxml-gccxml", "-E", *includes, *defines, *castxml_default_options, io.path] 
+                if true #debug
+                    call = [gcc_binary_name, "--preprocess", *includes, *defines, *gccxml_default_options, io.path]
+                    File.open("/tmp/debug1.gccxml","w+"){|f| f.write `#{call.join(' ')}`}
                 end
+                if true 
+                    #call = [use_castxml, "--castxml-gccxml", "-E", *includes, *defines, *castxml_default_options, io.path] 
+                    call = [use_castxml, "--castxml-gccxml", "-E", *includes, *defines, *castxml_default_options, io.path] 
+                    File.open("/tmp/debug1.castxml","w+"){|f| f.write `#{call.join(' ')}`}
+                end
+                
+                call = [gcc_binary_name, "--preprocess", *includes, *defines, *gccxml_default_options, io.path]
                 result = IO.popen(call) do |gccxml_io|
                     gccxml_io.read
                 end
 
-                STDOUT.puts "-------------"
-                STDOUT.puts "#{call.join(' ')}"
-                STDOUT.puts "-------------"
-                FileUtils.copy_file(io.path, "/tmp/gcc-debug.hpp")
+#                STDOUT.puts "-------------"
+#                STDOUT.puts "#{call.join(' ')}"
+#                STDOUT.puts "-------------"
+#                FileUtils.copy_file(io.path, "/tmp/gcc-debug.hpp")
 
                 if !$?.success?
                     FileUtils.copy_file(io.path, "/tmp/gcc-debug.hpp")
